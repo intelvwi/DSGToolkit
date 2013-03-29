@@ -43,64 +43,61 @@
  */
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 
-namespace LogFileReaders
+using Logging;
+using LogFileReaders;
+
+namespace HTTPLogSlicer
 {
-public static class LongDate
+public class HTTPRecord
 {
-    public const double ticksPerSecond = 10000000.0d;
-    public const double ticksPerHour = ticksPerSecond * 60d * 60d;
-    public const double ticksPerDay = ticksPerSecond * 60d * 60d * 24d;
+    private static string LogHeader = "[HTTPRecord]";
 
-    public const double secondsPerDay = 60d * 60d * 24d;
+    public double time;
+    public DateTime timeDateTime;
+    public string source;
+    public string op;
 
-    // Excel time is based on this year.
-    public static DateTime ExcelBaseTime = new DateTime(1900, 1, 1, 0, 0, 0);
-
-    /// <summary>
-    /// Given a date of the form YYYYMMDD[HH[MM[SS]]], return the Excel date
-    /// </summary>
-    /// <param name="dat"></param>
-    /// <returns></returns>
-    public static double ParseLongDate(string dat)
+    static public List<HTTPRecord> Read(string filename)
     {
-        if (dat.Length < 8) return 0d;
-        int year = Int32.Parse(dat.Substring(0, 4));
-        int month = Int32.Parse(dat.Substring(4, 2));
-        int day = Int32.Parse(dat.Substring(6, 2));
-        int hour = 0;
-        int min = 0;
-        int sec = 0;
-        if (dat.Length > 9) hour = Int32.Parse(dat.Substring(8,2));
-        if (dat.Length > 11) min = Int32.Parse(dat.Substring(10,2));
-        if (dat.Length > 13) sec = Int32.Parse(dat.Substring(12,2));
-        DateTime thisTime = new DateTime(year, month, day, hour, min, sec);
-        if (dat.Length == 17)
+        List<HTTPRecord> ret = new List<HTTPRecord>();
+
+        TextReader inReader = new StreamReader(File.Open(filename, FileMode.Open));
+        if (inReader == null)
         {
-            int millisecs = Int32.Parse(dat.Substring(14, 3));
-            thisTime.AddMilliseconds(millisecs);
+            Logger.Log("{0} Read: Failed opening stat file '{1}'", LogHeader, filename);
+            return null;
         }
 
-        // First day is numbered "1" (not zero) and it traditionally forgets that it is a century leap day.
-        return DateTimeToExcelDate(thisTime);
+        string inLine;
+
+        using (inReader)
+        {
+            while ((inLine = inReader.ReadLine()) != null)
+            {
+                try
+                {
+                    string[] pieces = inLine.Split(',');
+                    HTTPRecord aRec = new HTTPRecord();
+                    aRec.timeDateTime = DateTime.Now;
+                    aRec.time = LongDate.DateTimeToExcelDate(aRec.timeDateTime);
+                    aRec.source = "";
+                    aRec.op = "";
+
+                    ret.Add(aRec);
+                }
+                catch (Exception e)
+                {
+                    Logger.Log("{0} Exception parsing line: '{1}'", LogHeader, inLine);
+                    Logger.Log("{0} Exception parsing line: e: {1} ", LogHeader, e);
+                }
+            }
+        }
+
+        return ret;
     }
-
-    // The date is in days
-    public static string LongDateToString(double dat)
-    {
-        DateTime thisDate = new DateTime((long)(dat * ticksPerDay) + ExcelBaseTime.Ticks);
-
-        // TODO: this might be off by a day or two. See note above about odd base of ExcelBaseTime.
-        return thisDate.ToString("yyyyMMddHHmmssfff");
-    }
-
-    public static double DateTimeToExcelDate(DateTime thisTime)
-    {
-        return ((double)thisTime.Ticks - (double)ExcelBaseTime.Ticks) / ticksPerDay + 2d;
-    }
-
-
 }
 }
