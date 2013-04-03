@@ -254,10 +254,8 @@ ActivityByTime
         List<string> fieldNames = new List<string>();
         bool firstLine = true;
 
-        gRecords.ForEveryRecord((r) =>
-        {
-            GetRecordFieldNames(r, ref fieldNames);
-        });
+        // Collect all the field names
+        gRecords.ForEveryRecord((r) => { GetRecordFieldNames(r, ref fieldNames); });
 
         TextWriter outWriter = new StreamWriter(File.Open(m_outFile, FileMode.Create));
         if (outWriter != null)

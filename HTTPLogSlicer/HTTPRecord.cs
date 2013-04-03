@@ -46,6 +46,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 
 using Logging;
 using LogFileReaders;
@@ -56,10 +57,35 @@ public class HTTPRecord
 {
     private static string LogHeader = "[HTTPRecord]";
 
+    public string line;
+    public int bucket;
     public double time;
     public DateTime timeDateTime;
     public string source;
     public string op;
+    public string remain;
+
+    public HTTPRecord()
+    {
+    }
+
+    public override string ToString()
+    {
+        StringBuilder buff = new StringBuilder();
+        buff.Append("<b=");
+        buff.Append(bucket.ToString());
+        buff.Append(",t=");
+        buff.Append(time.ToString());
+        buff.Append(",d=");
+        buff.Append(timeDateTime.ToString());
+        buff.Append(",src=");
+        buff.Append(source);
+        buff.Append(",op=");
+        buff.Append(op);
+        buff.Append(">");
+
+        return buff.ToString(); ;
+    }
 
     static public List<HTTPRecord> Read(string filename)
     {
@@ -74,25 +100,67 @@ public class HTTPRecord
 
         string inLine;
 
+        Regex pattern = new Regex(@"^(\d+\.\d+\.\d+\.\d+) - - \[(\d+)/(...)/(\d+):(\d+):(\d+):(\d+) .*""(\w+) (.*)$");
+
         using (inReader)
         {
             while ((inLine = inReader.ReadLine()) != null)
             {
                 try
                 {
-                    string[] pieces = inLine.Split(',');
+// SAMPLE
+// 10.10.10.1 - - [17/Mar/2013:15:30:43 -0400] "POST /Grid/ HTTP/1.1" 200 4703 "-" "-"
+// 10.10.10.1 - - [17/Mar/2013:15:30:43 -0400] "POST /Grid/ HTTP/1.1" 200 213 "-" "-"
+// 10.10.10.1 - - [17/Mar/2013:15:30:43 -0400] "POST /Grid/ HTTP/1.1" 200 211 "-" "-"
+// 10.10.10.1 - - [17/Mar/2013:15:30:43 -0400] "POST /Grid/ HTTP/1.1" 200 211 "-" "-"
+// 98.229.237.99 - - [17/Mar/2013:15:30:43 -0400] "POST /Grid/login/ HTTP/1.1" 200 2586 "-" "-"
+// 10.10.10.1 - - [17/Mar/2013:15:30:47 -0400] "POST /Grid/ HTTP/1.1" 200 548 "-" "-"
+// 10.10.10.1 - - [17/Mar/2013:15:30:47 -0400] "POST /Grid/?id=9f54505f-b5aa-4e16-a1ef-d3152a252e08 HTTP/1.1" 200 293 "-" "-"
+// 10.10.10.1 - - [17/Mar/2013:15:30:47 -0400] "POST /Grid/ HTTP/1.1" 200 290 "-" "-"
+// 10.10.10.1 - - [17/Mar/2013:15:30:48 -0400] "GET /Grid/?id=cce0f112-878f-4586-a2e2-a8f104bba271 HTTP/1.1" 404 234 "-" "-"
+// 10.10.10.1 - - [17/Mar/2013:15:31:10 -0400] "POST /Grid/ HTTP/1.1" 200 223 "-" "-"
+// 98.229.237.99 - - [17/Mar/2013:15:31:10 -0400] "GET /GridFrontend/index.php?channel=Firestorm-Moses&firstlogin=TRUE&grid=mosesdsg&lang=en&os=Microsoft%20Windows%207%2064-bit%20&sourceid=&version=4.4.0%20(33429) HTTP/1.1" 200 1432 "-" "Mozilla/5.0 (Windows; U; Windows NT6.1; en-US) AppleWebKit/533.3 (KHTML, like Gecko) SecondLife/4.4.0.33429 (Firestorm-Moses; firestorm skin) Safari/533.3"
+// 10.10.10.1 - - [17/Mar/2013:15:31:10 -0400] "POST /Grid/ HTTP/1.1" 200 223 "-" "-"
+// 98.229.237.99 - - [17/Mar/2013:15:31:10 -0400] "GET /GridFrontend/index.php?channel=Firestorm-Moses&firstlogin=TRUE&grid=mosesdsg&lang=en&os=Microsoft%20Windows%207%2064-bit%20&sourceid=&version=4.4.0%20(33429) HTTP/1.1" 200 1432 "-" "Mozilla/5.0 (Windows; U; Windows NT6.1; en-US) AppleWebKit/533.3 (KHTML, like Gecko) SecondLife/4.4.0.33429 (Firestorm-Moses; firestorm skin) Safari/533.3"
+// 98.229.237.99 - - [17/Mar/2013:15:31:11 -0400] "GET /GridFrontend//static/styles/default/style.css HTTP/1.1" 200 897 "http://107.7.21.234/GridFrontend/index.php?channel=Firestorm-Moses&firstlogin=TRUE&grid=mosesdsg&lang=en&os=Microsoft%20Windows%207%2064-bit%20&sourceid=&version=4.4.0%20(33429)" "Mozilla/5.0 (Windows; U; Windows NT 6.1; en-US) AppleWebKit/533.3 (KHTML, like Gecko) SecondLife/4.4.0.33429 (Firestorm-Moses; firestorm skin) Safari/533.3"
+// 98.229.237.99 - - [17/Mar/2013:15:31:11 -0400] "GET /GridFrontend//static/javascript/jquery.qtip.js HTTP/1.1" 200 10148 "http://107.7.21.234/GridFrontend/index.php?channel=Firestorm-Moses&firstlogin=TRUE&grid=mosesdsg&lang=en&os=Microsoft%20Windows%207%2064-bit%20&sourceid=&version=4.4.0%20(33429)" "Mozilla/5.0 (Windows; U; Windows NT 6.1; en-US) AppleWebKit/533.3 (KHTML, like Gecko) SecondLife/4.4.0.33429 (Firestorm-Moses; firestorm skin) Safari/533.3"
+// 98.229.237.99 - - [17/Mar/2013:15:31:11 -0400] "GET /GridFrontend//static/styles/default/jquery-ui.css HTTP/1.1" 200 5985 "http://107.7.21.234/GridFrontend/index.php?channel=Firestorm-Moses&firstlogin=TRUE&grid=mosesdsg&lang=en&os=Microsoft%20Windows%207%2064-bit%20&sourceid=&version=4.4.0%20(33429)" "Mozilla/5.0 (Windows; U; Windows NT 6.1; en-US) AppleWebKit/533.3 (KHTML, like Gecko) SecondLife/4.4.0.33429 (Firestorm-Moses; firestorm skin) Safari/533.3"
+// 98.229.237.99 - - [17/Mar/2013:15:31:11 -0400] "GET /GridFrontend//static/styles/default/jquery.qtip.css HTTP/1.1" 200 1695 "http://107.7.21.234/GridFrontend/index.php?channel=Firestorm-Moses&firstlogin=TRUE&grid=mosesdsg&lang=en&os=Microsoft%20Windows%207%2064-bit%20&sstring[] pieces = inLine.Split(',');
+
+                    Match fields = pattern.Match(inLine);
+                    if (!fields.Success)
+                    {
+                        Logger.Log("PARSING FAILURE: {0}", inLine);
+                        continue;
+                    }
+
                     HTTPRecord aRec = new HTTPRecord();
-                    aRec.timeDateTime = DateTime.Now;
+                    aRec.line = inLine;
+                    aRec.bucket = 0;
+
+                    int nMonth = "xxJanFebMarAprMayJunJulAugSepOctNovDec".IndexOf(fields.Groups[3].Value) / 3;
+                    aRec.timeDateTime = new DateTime(
+                        int.Parse(fields.Groups[4].Value),  // year
+                        nMonth,                             // month
+                        int.Parse(fields.Groups[2].Value),  // month day
+                        int.Parse(fields.Groups[5].Value),  // hour
+                        int.Parse(fields.Groups[6].Value),  // minute
+                        int.Parse(fields.Groups[7].Value)   // second
+                        );
+
                     aRec.time = LongDate.DateTimeToExcelDate(aRec.timeDateTime);
-                    aRec.source = "";
-                    aRec.op = "";
+                    aRec.source = fields.Groups[1].Value;
+                    aRec.op = fields.Groups[8].Value;
+                    aRec.remain = fields.Groups[9].Value;
 
                     ret.Add(aRec);
+                    // Logger.Log(aRec.ToString());
                 }
                 catch (Exception e)
                 {
                     Logger.Log("{0} Exception parsing line: '{1}'", LogHeader, inLine);
                     Logger.Log("{0} Exception parsing line: e: {1} ", LogHeader, e);
+                    continue;
                 }
             }
         }

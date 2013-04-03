@@ -43,6 +43,7 @@
  */
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 
@@ -57,6 +58,8 @@ class HTTPLogSlicer
     Dictionary<string, string> m_Parameters;
     int m_ParamVerbose = 0;
     string m_inFiles = "";
+    string m_outFile = "HTTPLogSlicer.csv";
+    string m_cmHosts = "10.10.10.1,50.18.130.180,50.18.138.160,54.241.71.140";
     
     private bool IsVerbose { get { return m_ParamVerbose > 0; } }
     private bool IsVeryVerbose { get { return m_ParamVerbose > 1; } }
@@ -69,6 +72,8 @@ class HTTPLogSlicer
 INVOCATION:
 HTTPLogSlicer 
         -p|--period sliceSeconds
+        -h|--cmHosts commaListOfCMHosts
+        -o|--output outputFilename
         --verbose
         inputFilenames
 ";
@@ -81,6 +86,14 @@ HTTPLogSlicer
         return;
     }
 
+    private struct BucketLine
+    {
+        public int bucket;
+        public double time;
+        public int[] hostCount;
+        public int logins;
+    };
+
     public void Start(string[] args)
     {
         m_Parameters = ParameterParse.ParseArguments(args, false /* firstOpFlag */, true /* multipleFiles */);
@@ -91,6 +104,14 @@ HTTPLogSlicer
                 case "-p":
                 case "--period":
                     m_bucketSeconds = int.Parse(kvp.Value);
+                    break;
+                case "-o":
+                case "--output":
+                    m_outFile = kvp.Value;
+                    break;
+                case "-h":
+                case "--cmHosts":
+                    m_cmHosts = kvp.Value;
                     break;
                 case "--verbose":
                     m_ParamVerbose++;
@@ -130,7 +151,90 @@ HTTPLogSlicer
             minDate = Math.Min(minDate, rec.time);
             maxDate = Math.Max(maxDate, rec.time);
         }
-    }
 
+        double bucketBaseTime = minDate;
+        int numBuckets = ((int)((maxDate - minDate) * LongDate.secondsPerDay)) / m_bucketSeconds;
+        numBuckets += 1;    // add a last bucket for rounding error at the end.
+        Logger.Log("Number of buckets = {0}", numBuckets);
+
+        // Loop through all the records and assign each to a bucket
+        foreach (HTTPRecord rec in records)
+        {
+            rec.bucket = ((int)((rec.time - bucketBaseTime) * LongDate.secondsPerDay)) / m_bucketSeconds;
+        }
+
+        // Specify individual hosts to count accesses with CSV list "host,host,host"
+        List<string> cmHosts = m_cmHosts.Split(',').ToList<string>();
+        int numHosts = cmHosts.Count;
+        if (numHosts == 0)
+        {
+            Logger.Log("NUMBER OF Client Manager HOSTS MUST NOT BE ZERO!!");
+            return;
+        }
+
+        // Initialize each bucket line with the variable sized structures
+        BucketLine[] bucketLines = new BucketLine[numBuckets];
+        for (int ii = 0; ii < numBuckets; ii++)
+        {
+            bucketLines[ii].bucket = ii;
+            bucketLines[ii].time = bucketBaseTime + ((double)(ii * m_bucketSeconds) / LongDate.secondsPerDay);
+            bucketLines[ii].hostCount = new int[numHosts];
+            bucketLines[ii].logins = 0;
+        }
+
+        // Loop through all the records and fill the bucket info
+        foreach (HTTPRecord rec in records)
+        {
+            int nHost = cmHosts.IndexOf(rec.source);
+            if (nHost >= 0)
+                bucketLines[rec.bucket].hostCount[nHost]++;
+            if (rec.remain.Contains("/Grid/login/ "))
+                bucketLines[rec.bucket].logins++;
+        }
+
+        // Print out all the buckets
+        bool firstLine = true;
+        TextWriter outWriter = new StreamWriter(File.Open(m_outFile, FileMode.Create));
+        if (outWriter != null)
+        {
+            using (outWriter)
+            {
+                if (firstLine)
+                {
+                    StringBuilder buff = new StringBuilder();
+                    buff.Append("bucket");
+                    buff.Append(",");
+                    buff.Append("time");
+                    buff.Append(",");
+                    buff.Append("logins");
+                    buff.Append(",");
+                    for (int ii = 0; ii < cmHosts.Count; ii++)
+                    {
+                        buff.Append(cmHosts[ii]);
+                        buff.Append(",");
+                    }
+                    outWriter.WriteLine(buff.ToString());
+                    firstLine = false;
+                }
+
+                foreach (BucketLine buck in bucketLines)
+                {
+                    StringBuilder buff = new StringBuilder();
+                    buff.Append(buck.bucket.ToString());
+                    buff.Append(",");
+                    buff.Append(buck.time.ToString());
+                    buff.Append(",");
+                    buff.Append(buck.logins.ToString());
+                    buff.Append(",");
+                    for (int ii = 0; ii < buck.hostCount.Length; ii++)
+                    {
+                        buff.Append(buck.hostCount[ii].ToString());
+                        buff.Append(",");
+                    }
+                    outWriter.WriteLine(buff.ToString());
+                }
+            }
+        }
+    }
 }
 }
