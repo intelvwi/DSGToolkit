@@ -1,0 +1,11 @@
+Notes on DSG log processing (20130402)
+DSG rotates log files every 10 minutes so there are several log files to append
+together. The script "Scripts/CombineRaw.sh" finds all the conn-*, scene-* and server-*
+log files and appends them together into a new directory named "Analysis".
+
+Then you can 'cd' into 'Analysis' and run 'ActivityByTime.exe *.log' to convert
+the log files into 'ActivityByTime.csv'. This program selects fields from the
+log files. You need to change the sources for 'ActivityByTime' to select
+different fields.
+
+The script "Scripts/DoProcess.sh" does both of these steps.
