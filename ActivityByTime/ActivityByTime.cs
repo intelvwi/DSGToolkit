@@ -131,15 +131,19 @@ ActivityByTime
                     List<Records> syncConn = StatSyncConnector.Read(fileName);
                     globalCollection.Add(syncConn);
                 }
-                if (fileName.Substring(0, sceneName.Length) == sceneName)
+                else if (fileName.Substring(0, sceneName.Length) == sceneName)
                 {
                     List<Records> syncConn = StatScene.Read(fileName);
                     globalCollection.Add(syncConn);
                 }
-                if (fileName.Substring(0, serverName.Length) == serverName)
+                else if (fileName.Substring(0, serverName.Length) == serverName)
                 {
                     List<Records> syncConn = StatServer.Read(fileName);
                     globalCollection.Add(syncConn);
+                }
+                else
+                {
+                    Logger.Log("No handler for file {0}", fileName);
                 }
             }
         }
@@ -257,12 +261,11 @@ ActivityByTime
         // Collect all the field names
         gRecords.ForEveryRecord((r) => { GetRecordFieldNames(r, ref fieldNames); });
 
-        TextWriter outWriter = new StreamWriter(File.Open(m_outFile, FileMode.Create));
-        if (outWriter != null)
+        try
         {
-            using (outWriter)
+            using (TextWriter outWriter = new StreamWriter(File.Open(m_outFile, FileMode.Create)))
             {
-                for (int ii=0; ii < buckets.Length; ii++)
+                for (int ii = 0; ii < buckets.Length; ii++)
                 {
                     double bucketTime = 0d;
                     Dictionary<string, string> outFields = new Dictionary<string, string>();
@@ -275,7 +278,6 @@ ActivityByTime
                         {
                             if (!outFields.ContainsKey(fldname))
                                 outFields.Add(fldname, rec.outputFields[fldname]);
-
                         }
                     }
 
@@ -309,10 +311,11 @@ ActivityByTime
                     outWriter.WriteLine(buff.ToString());
                 }
             }
-        }
-        else
+                    }
+        catch(Exception e)
         {
-            Logger.Log("COULD NOT OPEN OUTPUT FILE '{0}", m_outFile);
+            Logger.Log("ERROR WRITING OUTPUT FILE '{0}' {1}", m_outFile, e.Message);
+            return;
         }
     }
 
